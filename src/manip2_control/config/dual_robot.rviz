@@ -1,0 +1,51 @@
+Panels:
+  - Class: rviz/Displays
+    Name: Displays
+  - Class: rviz/Views
+    Name: Views
+
+Visualization Manager:
+  Displays:
+    - Class: rviz/Grid
+      Name: Grid
+      Reference Frame: base_link
+    
+    - Class: rviz/RobotModel
+      Name: Real Robot
+      Robot Description: robot_description
+      TF Prefix: ""
+      Visual Enabled: true
+      Collision Enabled: false
+      Color: 0.0 1.0 0.0 0.8  # Green
+    
+    - Class: rviz/RobotModel
+      Name: MATLAB Agent Robot
+      Robot Description: matlab_robot_description
+      TF Prefix: matlab
+      Visual Enabled: true
+      Collision Enabled: false
+      Color: 1.0 0.5 0.0 0.5  # Orange, semi-transparent
+    
+    - Class: rviz/TF
+      Name: Real TF
+      Frames: All
+      Marker Scale: 0.1
+      Show Names: true
+    
+    - Class: rviz/TF
+      Name: MATLAB TF
+      Frames: 
+        Filter: matlab/*
+      Marker Scale: 0.1
+      Show Names: true
+      Color Override: true
+      Frame Color: 255 127 0  # Orange
+  
+  Global Options:
+    Fixed Frame: base_link
+
+  Views:
+    Current:
+      Class: rviz/Orbit
+      Distance: 1.5
+      Focal Point: [0.0, 0.0, 0.3]

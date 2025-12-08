@@ -1,0 +1,53 @@
+<launch>
+  <!--Args (declare ONCE)-->
+  <arg name="urdf_path"   default="/home/aliefpal/catkin_ws/src/manip2_urdf_description/urdf/manip2_urdf.xacro"/>
+  <arg name="port_name"   default="/dev/ttyS3"/>
+  <arg name="baud"        default="1000000"/>
+  <arg name="read_rate"   default="100.0"/>
+  <arg name="print_reads" default="true"/>
+
+  <!--URDF / robot_description (single source of truth)-->
+  <param name="robot_description" command="$(find xacro)/xacro '$(arg urdf_path)'" />
+
+  <!--Real robot state publisher (reads /joint_states)-->
+  <node name="robot_state_publisher"
+        pkg="robot_state_publisher"
+        type="robot_state_publisher" />
+
+  <node name="matlab_robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher">
+    <!-- IMPORTANT: robot_state_publisher reads 'robot_description', so set it here -->
+    <param name="robot_description"
+         command="$(find xacro)/xacro --inorder '$(arg urdf_path)' prefix:=matlab_" />
+    <!-- feed it the agent’s joint states -->
+    <remap from="/joint_states" to="/matlab_perceived/joint_states"/>
+  </node>
+
+  <!--Your Python control node
+       Pass private params the node expects (~port_name, ~baud_rate, etc.)
+  -->
+  <node name="manip2_dxl_matlab"
+        pkg="manip2_control"
+        type="manip2_dxl_matlab.py"
+        output="screen">
+    <param name="port_name"        value="$(arg port_name)"/>
+    <param name="baud_rate"        value="$(arg baud)"/>
+    <param name="read_rate_hz"     value="$(arg read_rate)"/>
+    <param name="print_reads"      value="$(arg print_reads)"/>
+    <param name="dxl_ids"          value="[1,2,3,4,5]"/>
+    <param name="dxl_id_p2"        value="2"/>
+    <param name="urdf_limits_deg"  value="[[-90,90],[-30,36],[-105,0],[-75,75],[-90,90]]"/>
+    <param name="tick_offsets_nom" value="[491,-4384,1720,509,501]"/>
+    <param name="degs_per_tick_nom" value="[0.29296875, 0.001185147, 0.06127442, -0.29296875, 0.29296875]"/>
+    <param name="boot_move_to_initial" value="true"/>
+    <param name="boot_initial_deg" value="[0, 36, -105.7, 0, 0]"/> <!-- recommend negative for J3 -->
+    <param name="boot_wait_sec" value="2.0"/>
+    <param name="boot_reach_tol_deg" value="0.5"/>
+    <param name="boot_timeout_sec" value="4.0"/>
+  </node>
+
+  <!--RViz-->
+  <node name="rviz"
+        pkg="rviz"
+        type="rviz"
+        args="-d $(find manip2_control)/config/dual_robot.rviz" />
+</launch>

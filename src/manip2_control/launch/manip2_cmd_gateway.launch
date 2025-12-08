@@ -1,0 +1,35 @@
+<launch>
+  <!-- =======================================================
+       manip2_command_gateway.launch
+       Purpose: Command Gateway only
+         - Subscribes: $(arg mqtt_base)/cmd/#
+         - Publishes:  /manip2/command_deg (std_msgs/Float64MultiArray)
+         - Calls:      /manip2/go_initial, /manip2/go_initial_and_shutdown,
+                       /manip2/emergency_shutdown, /manip2/reconnect_port,
+                       /manip2/safety/reset
+         - Emits:      $(arg mqtt_base)/cmd_result
+         broker.emqx.io
+       ======================================================= -->
+
+  <!-- Common args -->
+  <arg name="use_sim_time" default="false"/>
+
+  <!-- MQTT -->
+  <arg name="mqtt_host"    default="8.215.67.35"/>
+  <arg name="mqtt_port"    default="1883"/>
+  <arg name="mqtt_base"    default="robot/arm"/>
+  <arg name="mqtt_username"    default="aliefpal"/>
+  <arg name="mqtt_password"    default="Unpad2020"/>
+
+  <!-- Joint limits for clamping in the gateway (degrees) -->
+  <arg name="use_default_limits" default="true"/>
+  <rosparam if="$(arg use_default_limits)" param="deg_limits">[[-90,90],[-30,50],[-105,0],[-77,113],[-103,103]]</rosparam>
+
+  <node pkg="manip2_control" type="manip2_command_gateway.py" name="manip2_command_gateway" output="screen" respawn="true" respawn_delay="2.0">
+    <param name="use_sim_time" value="$(arg use_sim_time)"/>
+    <param name="mqtt_host" value="$(arg mqtt_host)"/>
+    <param name="mqtt_port" value="$(arg mqtt_port)"/>
+    <param name="mqtt_base" value="$(arg mqtt_base)"/>
+    <!-- If you want to feed limits from elsewhere, set use_default_limits:=false -->
+  </node>
+</launch>

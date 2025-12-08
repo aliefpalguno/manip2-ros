@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>manip2_control</name>
+  <version>0.0.1</version>
+  <description>ROS Noetic bridge for 5-DoF Dynamixel manipulator (mixed P1+P2).</description>
+
+  <maintainer email="you@example.com">Alief</maintainer>
+  <license>MIT</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <depend>rospy</depend>
+
+  <depend>roscpp</depend>
+  <depend>dynamixel_sdk</depend>
+  
+  <depend>std_msgs</depend>
+  <depend>sensor_msgs</depend>
+  <depend>std_srvs</depend>
+  
+  <depend>manip2_msgs</depend>
+
+  <depend>robot_state_publisher</depend>
+  <exec_depend>xacro</exec_depend>
+
+  <export/>
+</package>

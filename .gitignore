@@ -1,0 +1,34 @@
+# --- Catkin / build artifacts ---
+build/
+devel/
+log/
+logs/
+install/
+
+# --- Catkin tools metadata ---
+.catkin_tools/
+CMakeFiles/
+CMakeCache.txt
+
+# --- ROS logs & junk ---
+*.log
+
+# --- Python compiled files ---
+*.pyc
+__pycache__/
+
+# --- Bagfiles (can be huge) ---
+*.bag
+*.bag.active
+
+# --- Editors / IDE files ---
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store
+Thumbs.db
+
+# --- Third-party packages (keep them external) ---
+src/easy_aruco/
+src/easy_handeye/

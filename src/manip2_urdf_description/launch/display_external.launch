@@ -1,0 +1,14 @@
+<launch>
+  <!-- Use your existing xacro -->
+  <arg name="model" default="$(find manip2_urdf_description)/urdf/manip2_urdf.xacro"/>
+  <arg name="rvizconfig" default="$(find manip2_urdf_description)/launch/urdf.rviz"/>
+  <param name="robot_description" command="$(find xacro)/xacro $(arg model)"/>
+  <!-- Add this static TF so RViz knows a fixed frame exists even before joint_states arrive -->
+  <node pkg="tf2_ros" type="static_transform_publisher" name="world_to_base"
+        args="0 0 0 0 0 0 world base_link" />
+  <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher" output="screen" />
+  <!-- Optional static TF if you want 'world' -->
+  <!-- <node pkg="tf2_ros" type="static_transform_publisher" name="world_to_base"
+        args="0 0 0 0 0 0 world base_link" /> -->
+  <node name="rviz" pkg="rviz" type="rviz" args="-d $(arg rvizconfig)" required="true" />
+</launch>

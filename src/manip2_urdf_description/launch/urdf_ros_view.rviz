@@ -1,0 +1,27 @@
+# RViz config for viewing robot_description + /joint_states + /target_marker
+Visualization Manager:
+  Class: ""
+  Displays:
+    - Class: rviz/RobotModel
+      Enabled: true
+      Name: RobotModel
+      Robot Description: robot_description
+      Alpha: 1
+      Visual Enabled: true
+      Collision Enabled: false
+    - Class: rviz/TF
+      Enabled: true
+      Name: TF
+    - Class: rviz/Marker
+      Enabled: true
+      Name: TargetMarker
+      Marker Topic: /target_marker
+  Enabled: true
+  Global Options:
+    Fixed Frame: base_link
+  Name: root
+Panels:
+  - Class: rviz/Displays
+    Name: Displays
+  - Class: rviz/Views
+    Name: Views

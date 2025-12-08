@@ -1,0 +1,180 @@
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="manip2_urdf">
+
+<xacro:arg name="mesh_ext" default="stl"/>  <!-- use 'stl' if you must -->
+
+<xacro:include filename="$(find manip2_urdf_description)/urdf/materials.xacro" />
+<xacro:include filename="$(find manip2_urdf_description)/urdf/manip2_urdf.trans" />
+<xacro:include filename="$(find manip2_urdf_description)/urdf/manip2_urdf.gazebo" />
+<link name="base_link">
+  <inertial>
+    <origin xyz="-0.0002267259162550396 -0.0007415870686383538 0.04921699271044659" rpy="0 0 0" />
+    <mass value="2.2269004845153524" />
+    <inertia ixx="0.009337" iyy="0.0093" izz="0.011197" ixy="-1.3e-05" iyz="-2.8e-05" ixz="-9e-06" />
+  </inertial>
+  <visual>
+    <origin xyz="0 0 0" rpy="0 0 0" />
+    <geometry>
+      <mesh filename="package://manip2_urdf_description/meshes/base_link.$(arg mesh_ext)" scale="0.001 0.001 0.001" />
+    </geometry>
+    <material name="silver" />
+  </visual>
+  <collision>
+    <origin xyz="0 0 0" rpy="0 0 0" />
+    <geometry>
+      <mesh filename="package://manip2_urdf_description/meshes/base_link.$(arg mesh_ext)" scale="0.001 0.001 0.001" />
+    </geometry>
+  </collision>
+</link>
+
+<link name="base_top_1">
+  <inertial>
+    <origin xyz="-4.18913771979311e-05 0.00011135365022418786 0.053133701737136815" rpy="0 0 0" />
+    <mass value="0.42795130526479097" />
+    <inertia ixx="0.000711" iyy="0.000674" izz="0.001192" ixy="-0.0" iyz="-1e-06" ixz="0.0" />
+  </inertial>
+  <visual>
+    <origin xyz="-0.0 0.0 -0.0661" rpy="0 0 0" />
+    <geometry>
+      <mesh filename="package://manip2_urdf_description/meshes/base_top_1.$(arg mesh_ext)" scale="0.001 0.001 0.001" />
+    </geometry>
+    <material name="silver" />
+  </visual>
+  <collision>
+    <origin xyz="-0.0 0.0 -0.0661" rpy="0 0 0" />
+    <geometry>
+      <mesh filename="package://manip2_urdf_description/meshes/base_top_1.$(arg mesh_ext)" scale="0.001 0.001 0.001" />
+    </geometry>
+  </collision>
+</link>
+
+<link name="link_1_1">
+  <inertial>
+    <origin xyz="-0.0028646640256025264 0.04149755519962038 0.19139082856038442" rpy="0 0 0" />
+    <mass value="0.5054894832123901" />
+    <inertia ixx="0.014043" iyy="0.013781" izz="0.000464" ixy="1e-06" iyz="7.8e-05" ixz="-8.7e-05" />
+  </inertial>
+  <visual>
+    <origin xyz="0.000175 0.038075 -0.1395" rpy="0 0 0" />
+    <geometry>
+      <mesh filename="package://manip2_urdf_description/meshes/link_1_1.$(arg mesh_ext)" scale="0.001 0.001 0.001" />
+    </geometry>
+    <material name="silver" />
+  </visual>
+  <collision>
+    <origin xyz="0.000175 0.038075 -0.1395" rpy="0 0 0" />
+    <geometry>
+      <mesh filename="package://manip2_urdf_description/meshes/link_1_1.$(arg mesh_ext)" scale="0.001 0.001 0.001" />
+    </geometry>
+  </collision>
+</link>
+
+<link name="link_2_1">
+  <inertial>
+    <origin xyz="-0.00010286043269834913 0.031841650045836646 0.13700387263872982" rpy="0 0 0" />
+    <mass value="0.3838209136519176" />
+    <inertia ixx="0.003056" iyy="0.002902" izz="0.000306" ixy="0.0" iyz="4e-06" ixz="2e-06" />
+  </inertial>
+  <visual>
+    <origin xyz="0.00503 0.023975 -0.576599" rpy="0 0 0" />
+    <geometry>
+      <mesh filename="package://manip2_urdf_description/meshes/link_2_1.$(arg mesh_ext)" scale="0.001 0.001 0.001" />
+    </geometry>
+    <material name="silver" />
+  </visual>
+  <collision>
+    <origin xyz="0.00503 0.023975 -0.576599" rpy="0 0 0" />
+    <geometry>
+      <mesh filename="package://manip2_urdf_description/meshes/link_2_1.$(arg mesh_ext)" scale="0.001 0.001 0.001" />
+    </geometry>
+  </collision>
+</link>
+
+<link name="link_3_1">
+  <inertial>
+    <origin xyz="0.024032892964014934 -1.3001362077914858e-05 0.03983307159940064" rpy="0 0 0" />
+    <mass value="0.10053214650666124" />
+    <inertia ixx="8.7e-05" iyy="9.7e-05" izz="3.3e-05" ixy="-0.0" iyz="-0.0" ixz="3e-06" />
+  </inertial>
+  <visual>
+    <origin xyz="0.02813 -0.008725 -0.843599" rpy="0 0 0" />
+    <geometry>
+      <mesh filename="package://manip2_urdf_description/meshes/link_3_1.$(arg mesh_ext)" scale="0.001 0.001 0.001" />
+    </geometry>
+    <material name="silver" />
+  </visual>
+  <collision>
+    <origin xyz="0.02813 -0.008725 -0.843599" rpy="0 0 0" />
+    <geometry>
+      <mesh filename="package://manip2_urdf_description/meshes/link_3_1.$(arg mesh_ext)" scale="0.001 0.001 0.001" />
+    </geometry>
+  </collision>
+</link>
+
+<link name="link_4_1">
+  <inertial>
+    <origin xyz="-0.0007275189719251531 -0.02444025508459377 0.01937989056226086" rpy="0 0 0" />
+    <mass value="0.05844711080966675" />
+    <inertia ixx="3.5e-05" iyy="1.9e-05" izz="2.5e-05" ixy="0.0" iyz="-1e-06" ixz="1e-06" />
+  </inertial>
+  <visual>
+    <origin xyz="0.00478 -0.031325 -0.921599" rpy="0 0 0" />
+    <geometry>
+      <mesh filename="package://manip2_urdf_description/meshes/link_4_1.$(arg mesh_ext)" scale="0.001 0.001 0.001" />
+    </geometry>
+    <material name="silver" />
+  </visual>
+  <collision>
+    <origin xyz="0.00478 -0.031325 -0.921599" rpy="0 0 0" />
+    <geometry>
+      <mesh filename="package://manip2_urdf_description/meshes/link_4_1.$(arg mesh_ext)" scale="0.001 0.001 0.001" />
+    </geometry>
+  </collision>
+</link>
+
+<link name="end_effector">
+  
+</link>
+
+<joint name="joint1" type="revolute">
+  <origin xyz="0.0 0.0 0.0661" rpy="0 0 0" />
+  <parent link="base_link" />
+  <child link="base_top_1" />
+  <axis xyz="0.0 -0.0 1.0" />
+<limit lower="-1.570796327" upper="1.570796327" effort="100.0" velocity="100.0" /></joint>
+
+<joint name="joint2" type="revolute">
+  <origin xyz="-0.000175 -0.038075 0.0734" rpy="0 0 0" />
+  <parent link="base_top_1" />
+  <child link="link_1_1" />
+  <axis xyz="-0.0 -1.0 -0.0" />
+<limit lower="-0.523598776" upper="0.959931089" effort="100.0" velocity="100.0" /></joint>
+
+<joint name="joint3" type="revolute">
+  <origin xyz="-0.004855 0.0141 0.437099" rpy="0 0 0" />
+  <parent link="link_1_1" />
+  <child link="link_2_1" />
+  <axis xyz="0.0 -1.0 -0.0" />
+<limit lower="-1.832595715" upper="0.000000000" effort="100.0" velocity="100.0" /></joint>
+
+<joint name="joint4" type="revolute">
+  <origin xyz="-0.0231 0.0327 0.267" rpy="0 0 0" />
+  <parent link="link_2_1" />
+  <child link="link_3_1" />
+  <axis xyz="1.0 0.0 -0.0" />
+<limit lower="-1.308996939" upper="1.308996939" effort="100.0" velocity="100.0" /></joint>
+
+<joint name="joint5" type="revolute">
+  <origin xyz="0.02335 0.0226 0.078" rpy="0 0 0" />
+  <parent link="link_3_1" />
+  <child link="link_4_1" />
+  <axis xyz="-0.0 1.0 0.0" />
+<limit lower="-1.570796327" upper="1.570796327" effort="100.0" velocity="100.0" /></joint>
+
+<joint name="ee_fixed" type="fixed">
+  <parent link="link_4_1" />
+  <child link="end_effector" />
+  
+  <origin xyz="-0.006 -0.023 0.051" rpy="0 0 0" />
+</joint>
+
+</robot>

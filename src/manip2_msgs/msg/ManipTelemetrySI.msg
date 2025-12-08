@@ -1,0 +1,10 @@
+# manip2_msgs/msg/ManipTelemetrySI.msg
+std_msgs/Header header
+uint8[]   p1_ids
+float32[] p1_voltage_v
+float32[] p1_load_percent
+uint8[]   p1_temp_c
+uint8     p2_id
+float32   p2_current_a
+float32   p2_voltage_v
+uint8     p2_temp_c

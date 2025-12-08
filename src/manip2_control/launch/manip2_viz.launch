@@ -1,0 +1,25 @@
+<launch>
+  <!-- Paths -->
+  <arg name="urdf_path" default="$(env HOME)/catkin_ws/src/manip2_urdf_description/urdf/manip2_urdf.xacro"/>
+  <arg name="port_name" default="/dev/ttyUSB0"/>
+  <arg name="baud_rate" default="57600"/>
+
+  <!-- Start your Dynamixel bridge -->
+  <node pkg="manip2_control" type="manip2_dxl_bridge.py" name="manip2_dxl_bridge" output="screen">
+    <param name="port_name" value="$(arg port_name)"/>
+    <param name="baud_rate" value="$(arg baud_rate)"/>
+    <!-- Optional: ensure names match your URDF (joint1..joint5) -->
+    <param name="joint_names" value="['joint1','joint2','joint3','joint4','joint5']"/>
+    <param name="read_rate_hz" value="15.0"/>
+    <param name="print_reads" value="true"/>
+  </node>
+
+  <!-- Build robot_description from your URDF/Xacro -->
+  <param name="robot_description" command="$(find xacro)/xacro $(arg urdf_path)"/>
+
+  <!-- Publish TF from robot_description + /joint_states -->
+  <node pkg="robot_state_publisher" type="robot_state_publisher" name="robot_state_publisher" output="screen"/>
+
+  <!-- RViz with a ready config -->
+  <node pkg="rviz" type="rviz" name="rviz" args="-d $(find manip2_control)/config/manip2_viz.rviz"/>
+</launch>

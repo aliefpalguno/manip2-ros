@@ -1,0 +1,13 @@
+<launch>
+  <arg name="robot_ns" default=""/>
+  <arg name="controllers_file" default="$(find manip2_urdf_description)/launch/controller.yaml"/>
+
+  <!-- Controller parameters -->
+  <rosparam file="$(arg controllers_file)" command="load" />
+
+  <!-- Load controller manager if using gazebo_ros_control -->
+  <!-- For Gazebo: make sure gazebo is running with your robot spawned -->
+  <!-- Then spawn controllers: -->
+  <node name="controller_spawner" pkg="controller_manager" type="spawner"
+        args="joint_state_controller joint_trajectory_controller" output="screen" ns="$(arg robot_ns)"/>
+</launch>

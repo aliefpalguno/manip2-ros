@@ -1,0 +1,75 @@
+<launch>
+  <!-- ======= Args you’ll likely tweak ======= -->
+  <!-- MQTT broker (VPS) broker.emqx.io -->
+  <arg name="mqtt_enable"      default="true"/>
+  <arg name="mqtt_host"        default="8.215.67.35"/>
+  <arg name="mqtt_port"        default="1883"/>
+  <arg name="mqtt_base"        default="robot/arm"/>
+  <arg name="mqtt_username"    default="aliefpal"/>
+  <arg name="mqtt_password"    default="Unpad2020"/>
+
+  <!-- Joint list and which one is Protocol-2 (M-42-Pro) -->
+  <arg name="dxl_ids"          default="[1,2,3,4,5]"/>
+  <arg name="dxl_id_p2"        default="2"/>
+
+  <!-- Downsample rate for /joint_states mirror to MQTT -->
+  <arg name="js_downsample_hz" default="10.0"/>
+
+  <!-- Reference currents for M-42-Pro (tune per your datasheet label) -->
+  <arg name="p2_stall_current_a" default="2.0"/>
+  <arg name="p2_cont_current_a"  default="0.6"/>
+
+  <!-- Topics (override if your drivers use different names) -->
+  <arg name="topic_joint_states" default="/joint_states"/>
+  <arg name="topic_telem_raw"    default="/manip2/telemetry_raw"/>
+  <arg name="topic_telem_si"     default="/manip2/telemetry_si"/>
+  <arg name="topic_error_raw"    default="/manip2/error_status_raw"/>
+  <arg name="topic_error_text"   default="/manip2/error_status_text"/>
+  <arg name="topic_error_diag"   default="/manip2/error_status"/>
+
+  <!-- ======= Node ======= -->
+  <node pkg="manip2_control" type="manip2_web_bridge_node.py" name="manip2_web_bridge" output="screen">
+    <!-- IDs -->
+    <param name="dxl_ids"            value="$(arg dxl_ids)"/>
+    <param name="dxl_id_p2"          value="$(arg dxl_id_p2)"/>
+
+    <!-- MQTT -->
+    <param name="mqtt_enable"        value="$(arg mqtt_enable)"/>
+    <param name="mqtt_host"          value="$(arg mqtt_host)"/>
+    <param name="mqtt_port"          value="$(arg mqtt_port)"/>
+    <param name="mqtt_base"          value="$(arg mqtt_base)"/>
+    <param name="js_downsample_hz"   value="$(arg js_downsample_hz)"/>
+
+    <!-- P2 current references -->
+    <param name="p2_stall_current_a" value="$(arg p2_stall_current_a)"/>
+    <param name="p2_cont_current_a"  value="$(arg p2_cont_current_a)"/>
+
+    <!-- Topics -->
+    <param name="topic_joint_states" value="$(arg topic_joint_states)"/>
+    <param name="topic_telem_raw"    value="$(arg topic_telem_raw)"/>
+    <param name="topic_telem_si"     value="$(arg topic_telem_si)"/>
+    <param name="topic_error_raw"    value="$(arg topic_error_raw)"/>
+    <param name="topic_error_text"   value="$(arg topic_error_text)"/>
+    <param name="topic_error_diag"   value="$(arg topic_error_diag)"/>
+  </node>
+
+  <!-- Load URDF -->
+  <param name="robot_description" command="$(find xacro)/xacro '$(find manip2_urdf_description)/urdf/manip2_urdf.xacro'"/>
+
+  <!-- Publish TF from joint_states -->
+  <node pkg="robot_state_publisher" type="robot_state_publisher" name="manip2_state_pub" output="screen">
+    <param name="publish_frequency" value="0"/>
+  </node>
+
+  <!-- Anchor the robot in the world frame -->
+  <node pkg="tf2_ros" type="static_transform_publisher" name="world_to_base"
+      args="0 0 0 0 0 0 world base_link"/>
+
+  <!-- rosbridge for roslibjs / ros3djs -->
+  <include file="$(find rosbridge_server)/launch/rosbridge_websocket.launch">
+    <arg name="port" value="9090"/>
+  </include>
+
+  <node pkg="tf2_web_republisher" type="tf2_web_republisher" name="tf2_web_republisher"/>
+
+</launch>
