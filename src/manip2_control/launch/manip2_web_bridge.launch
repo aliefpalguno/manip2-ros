@@ -8,8 +8,8 @@
   <arg name="mqtt_username"    default="aliefpal"/>
   <arg name="mqtt_password"    default="Unpad2020"/>
   <arg name="rosbridge_port"   default="8443" />
-  <arg name="certfile"         default="/home/aliefpal/ros_ssl/server_cert.pem" />
-  <arg name="keyfile"          default="/home/aliefpal/ros_ssl/server_key.pem" />
+  <arg name="certfile"         default="/home/palguno/ros_ssl/server_cert.pem" />
+  <arg name="keyfile"          default="/home/palguno/ros_ssl/server_key.pem" />
 
   <!-- Joint list and which one is Protocol-2 (M-42-Pro) -->
   <arg name="dxl_ids"          default="[1,2,3,4,5]"/>
@@ -71,6 +71,7 @@
   <!-- rosbridge for roslibjs / ros3djs -->
   <include file="$(find rosbridge_server)/launch/rosbridge_websocket.launch">
     <arg name="port" value="$(arg rosbridge_port)"/>
+    <arg name="ssl" value="true"/>
     <arg name="certfile" value="$(arg certfile)"/>
     <arg name="keyfile" value="$(arg keyfile)"/>
     <arg name="authenticate" value="false"/>
