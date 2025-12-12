@@ -95,10 +95,10 @@ class SafetySupervisor(object):
         self.p1_load_warn_pct = self._opt_float("~p1_load_warn_pct", 80)
         self.p1_load_crit_pct = self._opt_float("~p1_load_crit_pct", 90)
 
-        self.p2_current_warn_a = self._opt_float("~p2_current_warn_a", None)
-        self.p2_current_crit_a = self._opt_float("~p2_current_crit_a", None)
-        self.p2_load_cont_warn_pct = self._opt_float("~p2_load_cont_warn_pct", 80)
-        self.p2_load_cont_crit_pct = self._opt_float("~p2_load_cont_crit_pct", 95)
+        self.p2_current_warn_a = self._opt_float("~p2_current_warn_a", 1.2)
+        self.p2_current_crit_a = self._opt_float("~p2_current_crit_a", 2)
+        self.p2_load_cont_warn_pct = self._opt_float("~p2_load_cont_warn_pct", None)
+        self.p2_load_cont_crit_pct = self._opt_float("~p2_load_cont_crit_pct", None)
 
         # comm softening: how long non-OK diagnostic must persist
         self.comm_error_crit_s: float = float(rospy.get_param("~comm_error_crit_s", 1.5))
@@ -219,8 +219,6 @@ class SafetySupervisor(object):
 
             # P2
             raw_cur = int(getattr(msg, "p2_current_raw", 0))
-            if raw_cur & 0x8000:
-                raw_cur -= 0x10000
             si.p2_current_a = float(raw_cur) * 0.00402832
             si.p2_voltage_v = 0.1 * float(getattr(msg, "p2_voltage_in_raw", 0))
             si.p2_temp_c    = int(getattr(msg, "p2_temp_c", 0))
@@ -383,6 +381,7 @@ class SafetySupervisor(object):
 
             # 1) LOAD / CURRENT
             if p2_i is not None:
+                # rospy.loginfo("P2 current: %.3f A", p2_i)
                 if self.p2_current_crit_a is not None and abs(p2_i) >= self.p2_current_crit_a:
                     reasons.append(("crit", "p2_current_crit", {"id": p2_id, "current_a": p2_i}))
                 elif self.p2_current_warn_a is not None and abs(p2_i) >= self.p2_current_warn_a:
