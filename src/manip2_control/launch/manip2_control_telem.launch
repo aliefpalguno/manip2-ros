@@ -1,15 +1,15 @@
 <launch>
   <!-- Reuse existing arguments -->
-  <arg name="urdf_path" default="/home/aliefpal/catkin_ws/src/manip2_urdf_description/urdf/manip2_urdf.xacro"/>
+  <arg name="urdf_path" default="/home/palguno/catkin_ws/src/manip2_urdf_description/urdf/manip2_urdf.xacro"/>
   <arg name="port_name" default="/dev/ttyUSB0"/>
   <arg name="baud" default="1000000"/>
-  <arg name="read_rate" default="10"/>
+  <arg name="read_rate" default="6"/>
   <arg name="print_reads" default="true"/>
   <arg name="publish_error_text" default="true"/>
   <arg name="p2_hw_error_addr" default="892"/>
 
   <!-- New: telemetry loop rate -->
-  <arg name="telem_rate" default="2.0"/>
+  <arg name="telem_rate" default="5.0"/>
 
   <!-- Robot description -->
   <param name="robot_description" command="$(find xacro)/xacro $(arg urdf_path)"/>

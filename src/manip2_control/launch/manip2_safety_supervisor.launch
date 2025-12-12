@@ -40,8 +40,8 @@
     <param name="p1_load_warn_pct" value=""/>
     <param name="p1_load_crit_pct" value=""/>
 
-    <param name="p2_current_warn_a" value=""/>
-    <param name="p2_current_crit_a" value=""/>
+    <param name="p2_current_warn_a" value="0.8"/>
+    <param name="p2_current_crit_a" value="1"/>
     <param name="p2_load_cont_warn_pct" value=""/>
     <param name="p2_load_cont_crit_pct" value=""/>
 
@@ -53,7 +53,7 @@
     <param name="lockout_delay_s" value="0.25" />
     <param name="comm_error_crit_s" value="1.5" />
 
-    <param name="loop_rate_hz" value="100.0" />
+    <param name="loop_rate_hz" value="50.0" />
 
     <!-- Safe pose & takeover services -->
     <rosparam param="safe_pose_deg">[0, 41, -104, 0, 0]</rosparam>

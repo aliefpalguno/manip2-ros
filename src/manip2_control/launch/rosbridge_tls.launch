@@ -1,8 +1,8 @@
 <!-- ~/catkin_ws/src/manip2_control/launch/rosbridge_tls.launch -->
 <launch>
   <arg name="port" default="8443" />
-  <arg name="certfile" default="/home/aliefpal/ros_ssl/server_cert.pem" />
-  <arg name="keyfile" default="/home/aliefpal/ros_ssl/server_key.pem" />
+  <arg name="certfile" default="/home/palguno/ros_ssl/server_cert.pem" />
+  <arg name="keyfile" default="/home/palguno/ros_ssl/server_key.pem" />
 
   <include file="$(find rosbridge_server)/launch/rosbridge_websocket.launch">
     <arg name="port" value="$(arg port)"/>
