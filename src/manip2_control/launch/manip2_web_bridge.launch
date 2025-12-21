@@ -11,6 +11,29 @@
   <arg name="certfile"         default="/home/palguno/ros_ssl/server_cert.pem" />
   <arg name="keyfile"          default="/home/palguno/ros_ssl/server_key.pem" />
 
+ <!-- Load URDF -->
+  <param name="robot_description" command="$(find xacro)/xacro '$(find manip2_urdf_description)/urdf/manip2_urdf.xacro'"/>
+
+  <!-- Publish TF from joint_states -->
+  <node pkg="robot_state_publisher" type="robot_state_publisher" name="manip2_state_pub" output="screen">
+    <param name="publish_frequency" value="0"/>
+  </node>
+
+  <!-- Anchor the robot in the world frame -->
+  <node pkg="tf2_ros" type="static_transform_publisher" name="world_to_base"
+      args="0 0 0 0 0 0 world base_link"/>
+
+  <!-- rosbridge for roslibjs / ros3djs -->
+  <include file="$(find rosbridge_server)/launch/rosbridge_websocket.launch">
+    <arg name="port" value="$(arg rosbridge_port)"/>
+    <arg name="ssl" value="true"/>
+    <arg name="certfile" value="$(arg certfile)"/>
+    <arg name="keyfile" value="$(arg keyfile)"/>
+    <arg name="authenticate" value="false"/>
+  </include>
+
+  <node pkg="tf2_web_republisher" type="tf2_web_republisher" name="tf2_web_republisher"/>
+
   <!-- Joint list and which one is Protocol-2 (M-42-Pro) -->
   <arg name="dxl_ids"          default="[1,2,3,4,5]"/>
   <arg name="dxl_id_p2"        default="2"/>
@@ -56,27 +79,5 @@
     <param name="topic_error_diag"   value="$(arg topic_error_diag)"/>
   </node>
 
-  <!-- Load URDF -->
-  <param name="robot_description" command="$(find xacro)/xacro '$(find manip2_urdf_description)/urdf/manip2_urdf.xacro'"/>
-
-  <!-- Publish TF from joint_states -->
-  <node pkg="robot_state_publisher" type="robot_state_publisher" name="manip2_state_pub" output="screen">
-    <param name="publish_frequency" value="0"/>
-  </node>
-
-  <!-- Anchor the robot in the world frame -->
-  <node pkg="tf2_ros" type="static_transform_publisher" name="world_to_base"
-      args="0 0 0 0 0 0 world base_link"/>
-
-  <!-- rosbridge for roslibjs / ros3djs -->
-  <include file="$(find rosbridge_server)/launch/rosbridge_websocket.launch">
-    <arg name="port" value="$(arg rosbridge_port)"/>
-    <arg name="ssl" value="true"/>
-    <arg name="certfile" value="$(arg certfile)"/>
-    <arg name="keyfile" value="$(arg keyfile)"/>
-    <arg name="authenticate" value="false"/>
-  </include>
-
-  <node pkg="tf2_web_republisher" type="tf2_web_republisher" name="tf2_web_republisher"/>
-
+ 
 </launch>

@@ -1,0 +1,16 @@
+<launch>
+  <node pkg="manip2_control" type="manip2_ik_bridge.py" name="manip2_ik_bridge" output="screen">
+    <param name="base_link" value="base_link"/>
+    <param name="tip_link" value="end_effector"/>
+
+    <param name="target_topic" value="/user/target_position"/>
+    <param name="cmd_topic" value="/manip2/command_deg"/>
+
+    <!-- command_gateway feeds cm right now -->
+    <param name="input_scale" value="0.01"/>
+
+    <!-- soften solver jumps -->
+    <param name="max_step_deg" value="12.0"/>
+    <param name="hold_orientation" value="true"/>
+  </node>
+</launch>

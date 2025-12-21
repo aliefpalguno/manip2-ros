@@ -24,7 +24,7 @@ import threading
 from typing import List, Optional, Dict
 
 import rospy
-from std_msgs.msg import String, Float64MultiArray, Header
+from std_msgs.msg import String, Header
 from sensor_msgs.msg import JointState
 from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus, KeyValue
 from std_srvs.srv import Trigger, TriggerResponse
@@ -54,12 +54,12 @@ class SafetySupervisor(object):
         # joint limits (deg)
         self.deg_limits: List[List[float]] = rospy.get_param(
             "~deg_limits",
-            [[-90, 90], [-30, 60], [-104, 0], [-75, 75], [-90, 90]],
+            [[-90,90],[-30,50],[-106,0],[-77,113],[-103,103]],
         )
 
         # global margin, per-joint override
         self.joint_warn_margin_deg: float = float(rospy.get_param("~joint_warn_margin_deg", 5.0))
-        self.joint_warn_margin_per_joint: List[float] = rospy.get_param("~joint_warn_margin_per_joint", [5,2.5,0.5,5,5])
+        self.joint_warn_margin_per_joint: List[float] = rospy.get_param("~joint_warn_margin_per_joint", [5,1.0,0.5,5,5])
         # allow resting exactly on limit (for joints that are designed like that)
         self.allow_at_limit: bool = bool(rospy.get_param("~allow_at_limit", True))
         self.limit_epsilon_deg: float = float(rospy.get_param("~limit_epsilon_deg", 2.0))
@@ -95,31 +95,34 @@ class SafetySupervisor(object):
         self.p1_load_warn_pct = self._opt_float("~p1_load_warn_pct", 80)
         self.p1_load_crit_pct = self._opt_float("~p1_load_crit_pct", 90)
 
-        self.p2_current_warn_a = self._opt_float("~p2_current_warn_a", 1.2)
-        self.p2_current_crit_a = self._opt_float("~p2_current_crit_a", 2)
+        self.p2_current_warn_a = self._opt_float("~p2_current_warn_a", 0.8)
+        self.p2_current_crit_a = self._opt_float("~p2_current_crit_a", 1.4)
         self.p2_load_cont_warn_pct = self._opt_float("~p2_load_cont_warn_pct", None)
         self.p2_load_cont_crit_pct = self._opt_float("~p2_load_cont_crit_pct", None)
 
         # comm softening: how long non-OK diagnostic must persist
-        self.comm_error_crit_s: float = float(rospy.get_param("~comm_error_crit_s", 1.5))
+        self.comm_error_crit_s: float = float(rospy.get_param("~comm_error_crit_s", 0.5))
 
         # warning hold
         self.warn_hold_s: float = float(rospy.get_param("~warn_hold_s", 0.1))
 
         # takeover settings
-        self.safe_pose_deg: Optional[List[float]] = rospy.get_param("~safe_pose_deg", [0, 36, -105, 0, 0])
-        self.takeover_cmd_topic: str = rospy.get_param("~takeover_cmd_topic", "/manip2/command_deg")
         self.stage2_services: List[str] = rospy.get_param(
             "~stage2_services",
-            ["/manip2/go_initial_and_shutdown", "/manip2/go_initial", "/manip2/emergency_shutdown"],
+            ["/manip2/go_initial_and_shutdown", "/manip2/emergency_shutdown"],
         )
         # how long to wait for EACH service call to respond
-        self.service_timeout_s: float = float(rospy.get_param("~service_timeout_s", 1.0))
-        # how long to let robot move to safe pose BEFORE we lock/kill
-        self.lockout_delay_s: float = float(rospy.get_param("~lockout_delay_s", 0.25))
+        self.service_timeout_s: float = float(rospy.get_param("~service_timeout_s", 0.1))
         # whether to set /manip2/lockout on Stage 2
         self.enable_lockout: bool = bool(rospy.get_param("~enable_lockout", True))
         self.lockout_param_name: str = rospy.get_param("~lockout_param_name", "/manip2/lockout")
+
+        # Emit safety events even when stage doesn't change:
+        # - on reason-set change
+        # - periodically while reasons exist (reminder)
+        self.event_emit_on_reason_change = bool(rospy.get_param("~event_emit_on_reason_change", True))
+        self.event_reminder_period_s = float(rospy.get_param("~event_reminder_period_s", 0.5))  # 0 disables periodic reminders
+
 
         # topics in
         self.topic_joint_states = rospy.get_param("~topic_joint_states", "/joint_states")
@@ -132,7 +135,6 @@ class SafetySupervisor(object):
         self.topic_event        = rospy.get_param("~topic_event", "/manip2/safety/event")
         self.topic_state        = rospy.get_param("~topic_state", "/manip2/safety/state")
         self.topic_diag         = rospy.get_param("~topic_diag", "/manip2/safety/diagnostics")
-        self.topic_notification = rospy.get_param("~topic_notification", "/manip2/safety/notification")
 
         # ================== STATE ==================
         self._lock = threading.RLock()
@@ -147,12 +149,17 @@ class SafetySupervisor(object):
         self._stage: int = 0
         self._last_state_json: str = ""
 
+        self._event_seq = 0
+        self._last_reasons_sig = ""
+        self._last_reminder_t = 0.0
+
+        self.max_joint_state_age_s = float(rospy.get_param("~max_joint_state_age_s", 1))
+
+
         # ================== PUB / SUB ==================
         self.pub_event        = rospy.Publisher(self.topic_event, String, queue_size=20)
         self.pub_state        = rospy.Publisher(self.topic_state, String, queue_size=3, latch=True)
         self.pub_diag         = rospy.Publisher(self.topic_diag, DiagnosticArray, queue_size=10)
-        self.pub_notification = rospy.Publisher(self.topic_notification, String, queue_size=20)
-        self.pub_takeover_cmd = rospy.Publisher(self.takeover_cmd_topic, Float64MultiArray, queue_size=1)
 
         rospy.Subscriber(self.topic_joint_states, JointState, self._on_js, queue_size=50)
         if HAVE_SI:
@@ -168,7 +175,7 @@ class SafetySupervisor(object):
         # reset service
         rospy.Service("/manip2/safety/reset", Trigger, self._on_reset)
 
-        self.loop_rate_hz = float(rospy.get_param("~loop_rate_hz", 10.0))
+        self.loop_rate_hz = float(rospy.get_param("~loop_rate_hz", 50.0))
 
         # main loop
         self._stop = threading.Event()
@@ -182,19 +189,20 @@ class SafetySupervisor(object):
             return
         new_deg = [math.degrees(p) for p in msg.position]
         now = time.time()
+
         with self._lock:
-            self._last_js_ts = now
             if self.drop_spike_samples and self._last_deg is not None:
                 n = min(len(new_deg), len(self._last_deg))
-                spiky = False
                 for i in range(n):
                     if abs(new_deg[i] - self._last_deg[i]) > self.max_joint_step_deg:
-                        spiky = True
-                        break
-                if spiky:
-                    rospy.logwarn_throttle(1.0, "Safety: dropped spiky joint_states sample")
-                    return
+                        rospy.logwarn_throttle(1.0, "Safety: dropped spiky joint_states sample")
+                        # IMPORTANT: do NOT update _last_js_ts here
+                        return
+
+            # Accept sample
             self._last_deg = [round(x, 3) for x in new_deg]
+            self._last_js_ts = now
+
 
     def _on_telem_si(self, msg):
         now = time.time()
@@ -254,6 +262,12 @@ class SafetySupervisor(object):
         self._stage = 0
         self._breach_t0.clear()
         self._last_comm_err_t0 = None
+        self._last_reasons_sig = ""
+        self._last_reminder_t = 0.0
+        self._last_deg = None
+        self._last_js_ts = None
+
+
         # unlock robot
         if self.enable_lockout:
             try:
@@ -279,6 +293,7 @@ class SafetySupervisor(object):
         now = time.time()
         with self._lock:
             deg     = self._last_deg[:] if self._last_deg else None
+            js_ts   = self._last_js_ts
             telem   = self._last_telem
             errors  = dict(self._last_errors)
             err_txt = self._last_error_text
@@ -289,7 +304,8 @@ class SafetySupervisor(object):
         reasons = []
 
         # ========== 1) JOINT CHECKS ==========
-        if deg is not None and self.deg_limits and (online or not self.skip_joint_when_comm_bad):
+        js_fresh = (js_ts is not None) and ((now - js_ts) < self.max_joint_state_age_s)
+        if deg is not None and js_fresh and self.deg_limits and (online or not self.skip_joint_when_comm_bad):
             n = min(len(deg), len(self.deg_limits))
             for i in range(n):
                 lo, hi = self.deg_limits[i]
@@ -442,12 +458,18 @@ class SafetySupervisor(object):
         # human readable
         human_list = self._reasons_to_human(new_stage, reasons)
 
+        reasons_sig = self._reasons_signature(reasons) if reasons else ""
+        stage_changed = (new_stage != self._stage)
+
         # handle stage change
-        if new_stage != self._stage:
-            # always publish event/state immediately
+        if stage_changed:
             self._emit_event(new_stage, "stage_change", reasons, human_list)
             self._publish_state(new_stage)
             self._stage = new_stage
+
+            # IMPORTANT: update tracking so we don't immediately "reasons_update" after stage_change
+            self._last_reasons_sig = reasons_sig
+            self._last_reminder_t = now
 
             if new_stage == 2:
                 # if robot looks offline (just reconnected), don't try to move right now
@@ -461,32 +483,35 @@ class SafetySupervisor(object):
                                      ["Robot offline, takeover deferred"])
                 else:
                     self._do_takeover(reasons)
+        else:
+        # Stage didn't change, but we still want events while reasons exist.
+            if reasons and new_stage == 1:
+                # A) Emit immediately if the *reason set* changed (not the numeric values)
+                if self.event_emit_on_reason_change and (reasons_sig != self._last_reasons_sig):
+                    self._emit_event(new_stage, "reasons_update", reasons, human_list)
+                    self._last_reasons_sig = reasons_sig
+                    self._last_reminder_t = now
 
-        # notifications every tick if we have reasons
-        if reasons:
-            self._publish_notification(human_list)
+                # B) Otherwise emit periodic reminders
+                elif self.event_reminder_period_s > 0 and (now - self._last_reminder_t) >= self.event_reminder_period_s:
+                    self._emit_event(new_stage, "reminder", reasons, human_list)
+                    self._last_reminder_t = now
+
+            elif not reasons:
+                # No reasons: clear signature so next warning emits properly
+                self._last_reasons_sig = ""
+
 
         # periodic state refresh
         if not self._last_state_json or (time.time() % 1.0) < 0.1:
             self._publish_state(self._stage)
+        
+
 
     # ==========================================================
     # TAKEOVER LOGIC
     # ==========================================================
     def _do_takeover(self, reasons):
-        # 1) publish safe pose (if configured)
-        if isinstance(self.safe_pose_deg, (list, tuple)) and len(self.safe_pose_deg) >= 5:
-            try:
-                self.pub_takeover_cmd.publish(Float64MultiArray(data=[float(x) for x in self.safe_pose_deg[:5]]))
-                self._emit_event(2, "takeover_safe_pose_commanded", reasons,
-                                 [f"safe pose: {self.safe_pose_deg[:5]}"])
-            except Exception as e:
-                rospy.logwarn("Safety: failed to publish safe pose: %s", str(e))
-
-        # 2) small delay → so DXL (esp. after reconnect) can actually consume the command
-        if self.lockout_delay_s > 0:
-            rospy.sleep(self.lockout_delay_s)
-
         # 3) set lockout so user/agent can't override
         if self.enable_lockout:
             try:
@@ -594,21 +619,32 @@ class SafetySupervisor(object):
                 msgs.append(f"{sev.upper()}: {code} {detail}")
         return msgs
 
-    def _publish_notification(self, human_list):
-        if not human_list:
-            return
-        self.pub_notification.publish(String(data=" | ".join(human_list)))
-
     def _emit_event(self, stage: int, event: str, reasons, human_list):
         payload = {
             "schema": "manip2.safety.v1",
             "ts_iso": _iso_now(),
+            "ts_unix_ns": time.time_ns(),
+            "seq": self._event_seq,
             "stage": int(stage),
             "event": event,
             "reasons": reasons,
             "human": human_list,
         }
+        self._event_seq += 1
         self.pub_event.publish(String(data=json.dumps(payload)))
+
+    def _reasons_signature(self, reasons) -> str:
+        # Signature ignores noisy numeric values; focuses on "what kind of reason" and "which joint/id"
+        items = []
+        for sev, code, detail in (reasons or []):
+            ident = {}
+            if isinstance(detail, dict):
+                if "joint" in detail: ident["joint"] = int(detail["joint"])
+                if "id" in detail: ident["id"] = int(detail["id"])
+            items.append([str(sev), str(code), ident])
+        items.sort(key=lambda x: (x[0], x[1], json.dumps(x[2], sort_keys=True)))
+        return json.dumps(items, sort_keys=True)
+
 
     def _publish_state(self, stage=None):
         if stage is None:

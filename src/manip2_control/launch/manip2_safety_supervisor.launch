@@ -15,9 +15,9 @@
     <param name="topic_diag"  value="/manip2/safety/diagnostics"/>
 
     <!-- Placeholder limits (tune later) -->
-    <rosparam param="deg_limits">[[-90,90],[-30,50],[-105,0],[-77,113],[-103,103]]</rosparam>
+    <rosparam param="deg_limits">[[-90,90],[-15,45],[-106,0],[-77,113],[-103,103]]</rosparam>
     <param name="warn_margin_deg" value="5.0"/>
-    <param name="joint_exceed_hold_s" value="0.8"/>
+    <param name="joint_exceed_hold_s" value="0.5"/>
 
     <!-- Temps / Voltage / Load thresholds (placeholders; set your own values) -->
     <param name="p1_temp_warn_c" value=""/>  <!-- e.g., 65 -->
@@ -41,24 +41,22 @@
     <param name="p1_load_crit_pct" value=""/>
 
     <param name="p2_current_warn_a" value="0.8"/>
-    <param name="p2_current_crit_a" value="1"/>
+    <param name="p2_current_crit_a" value="1.4"/>
     <param name="p2_load_cont_warn_pct" value=""/>
     <param name="p2_load_cont_crit_pct" value=""/>
 
     <param name="drop_spike_samples" value="true" />
-    <param name="max_joint_step_deg" value="20.0" />
+    <param name="max_joint_step_deg" value="15.0" />
     <param name="skip_joint_when_comm_bad" value="true" />
     <rosparam param="joint_warn_margin_per_joint">[5,1.0,0.5,5,5]</rosparam>
-    <param name="allow_at_limit" value="true" />
+    <param name="allow_at_limit" value="false" />
     <param name="lockout_delay_s" value="0.25" />
-    <param name="comm_error_crit_s" value="1.5" />
+    <param name="comm_error_crit_s" value="0.5" />
 
     <param name="loop_rate_hz" value="50.0" />
 
     <!-- Safe pose & takeover services -->
-    <rosparam param="safe_pose_deg">[0, 41, -104, 0, 0]</rosparam>
-    <rosparam param="stage2_services">["/manip2/go_initial_and_shutdown", "/manip2/go_initial", "/manip2/emergency_shutdown"]</rosparam>
-    <param name="service_timeout_s" value="1.0"/>
-    <param name="wait_after_safe_pose_s" value="6.0"/>
+    <rosparam param="stage2_services">["/manip2/go_initial_and_shutdown", "/manip2/emergency_shutdown"]</rosparam>
+    <param name="service_timeout_s" value="0.1"/>
   </node>
 </launch>

@@ -45,7 +45,7 @@ def clamp_vec(vals: List[float], limits: Optional[List[Tuple[float,float]]]) -> 
 class Gateway:
     def __init__(self):
         rospy.init_node("manip2_command_gateway", anonymous=False)
-        self.mqtt_host = rospy.get_param("~mqtt_host", "127.0.0.1")
+        self.mqtt_host = rospy.get_param("~mqtt_host", "8.215.67.35")
         self.mqtt_port = int(rospy.get_param("~mqtt_port", 1883))
         self.mqtt_base = rospy.get_param("~mqtt_base", "robot/arm")
         self.mqtt_username = rospy.get_param("~mqtt_username", "aliefpal")
