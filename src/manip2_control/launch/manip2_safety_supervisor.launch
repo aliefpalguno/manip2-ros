@@ -15,7 +15,7 @@
     <param name="topic_diag"  value="/manip2/safety/diagnostics"/>
 
     <!-- Placeholder limits (tune later) -->
-    <rosparam param="deg_limits">[[-90,90],[-15,45],[-106,0],[-77,113],[-103,103]]</rosparam>
+    <rosparam param="deg_limits">[[-90,90],[-10,45],[-106,0],[-77,113],[-103,103]]</rosparam>
     <param name="warn_margin_deg" value="5.0"/>
     <param name="joint_exceed_hold_s" value="0.5"/>
 

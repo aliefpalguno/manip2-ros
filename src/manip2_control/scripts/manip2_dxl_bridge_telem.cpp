@@ -158,12 +158,12 @@ public:
 
         nh_priv_.param<int>("p2_hw_error_addr", p2_hw_error_addr_, ADDR_PRO_HARDWARE_ERROR_STATUS);
         nh_priv_.param<bool>("publish_error_text", publish_error_text_, true);
-        nh_priv_.param<double>("shutdown_after_initial_wait_s", shutdown_after_initial_wait_s_, 6.0);
+        // nh_priv_.param<double>("shutdown_after_initial_wait_s", shutdown_after_initial_wait_s_, 6.0);
 
         // Go-initial-and-shutdown verification ("success" should mean "reached initial pose")
         // Defaults keep Stage-2 takeover quick. Tune via ROS params if needed.
-        nh_priv_.param<double>("go_initial_timeout_s", go_initial_timeout_s_, 2.5);
-        nh_priv_.param<double>("go_initial_tol_deg", go_initial_tol_deg_, 1.0);
+        nh_priv_.param<double>("go_initial_timeout_s", go_initial_timeout_s_, 5);
+        nh_priv_.param<double>("go_initial_tol_deg", go_initial_tol_deg_, 1.5);
         nh_priv_.param<double>("go_initial_verify_rate_hz", go_initial_verify_rate_hz_, 40.0);
         nh_priv_.param<int>("go_initial_stable_cycles", go_initial_stable_cycles_, 5);
 

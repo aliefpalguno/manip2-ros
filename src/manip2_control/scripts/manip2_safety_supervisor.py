@@ -42,10 +42,8 @@ except Exception:
 
 
 def _iso_now() -> str:
-    t = time.time()
-    frac = int((t % 1) * 1e6)
-    return time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(t)) + f".{frac:06d}Z"
-
+    """Generate ISO 8601 timestamp with microsecond precision."""
+    return time.strftime("%Y-%m-%dT%H:%M:%S.", time.gmtime()) + f"{int((time.time()%1)*1e6):06d}Z"
 
 class SafetySupervisor(object):
     def __init__(self):
