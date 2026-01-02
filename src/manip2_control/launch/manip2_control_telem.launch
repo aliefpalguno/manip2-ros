@@ -32,7 +32,7 @@
     <param name="speed_p2_value" value="450"/>
 
     <param name="urdf_limits_deg" value="[[-90,90],[-30,50],[-105,0],[-77,113],[-103,103]]"/>
-    <param name="tick_offsets_nom" value="[498,-2275,1701,507,504]"/>
+    <param name="tick_offsets_nom" value="[505,877,1708,508,492]"/>
     <param name="degs_per_tick_nom" value="[0.29296875,0.001185185,0.0612916,-0.29296875,0.29296875]"/>
 
     <param name="read_rate_hz" value="$(arg read_rate)"/>

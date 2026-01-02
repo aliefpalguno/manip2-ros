@@ -187,6 +187,10 @@ class Manip2WebBridge:
                 oneshot=False
             )
 
+        # Timer BARU untuk membatasi frekuensi publish Joint State ke MQTT (Throttling)
+        # Ini mencegah packet loss karena burst data
+        if self.mqtt_enable and self.js_downsample_hz > 0:
+            rospy.Timer(rospy.Duration(1.0 / self.js_downsample_hz), self._on_js_mqtt_timer)
 
         rospy.loginfo("manip2_web_bridge_node initialized.")
 
@@ -247,24 +251,33 @@ class Manip2WebBridge:
         with self._lock:
             self._last_js = msg
 
-        # Optional: thin MQTT mirror of joint state at a downsampled rate
-        if self.mqtt_client is not None and self.js_downsample_hz > 0:
-            now = time.time()
-            if (now - self._last_js_pub) >= (1.0 / self.js_downsample_hz):
-                self._last_js_pub = now
-                try:
-                    joint_deg = [math.degrees(p) for p in (msg.position or [])]
-                    payload = {
-                        "ts_unix_ns": _now_ns(),
-                        "ts_iso": _iso_now(),
-                        "seq": msg.header.seq if msg.header else 0,
-                        "joint_names": msg.name,
-                        "joint_deg": joint_deg,
-                    }
-                    self.mqtt_client.publish(f"{self.mqtt_base}/joints/state",
-                                             json.dumps(payload), qos=1, retain=False)
-                except Exception as e:
-                    rospy.logwarn_throttle(1.0, "MQTT joint state pub failed: %s", str(e))
+    def _on_js_mqtt_timer(self, event):
+        """Publish joint state ke MQTT dengan frekuensi stabil (Timer)."""
+        if self.mqtt_client is None: return
+        
+        # Ambil copy data terbaru secara thread-safe
+        js_copy = None
+        with self._lock:
+            if self._last_js:
+                js_copy = self._last_js
+        
+        if js_copy is None: return
+
+        try:
+            joint_deg = [math.degrees(p) for p in (js_copy.position or [])]
+            
+            # Gunakan _now_ns() (Waktu Server Saat Ini) agar latency terhitung benar
+            payload = {
+                "ts_unix_ns": _now_ns(),
+                "ts_iso": _iso_now(),
+                "seq": js_copy.header.seq if js_copy.header else 0,
+                "joint_names": js_copy.name,
+                "joint_deg": joint_deg,
+            }
+            self.mqtt_client.publish(f"{self.mqtt_base}/joints/state",
+                                     json.dumps(payload), qos=1, retain=False)
+        except Exception as e:
+            rospy.logwarn_throttle(2.0, f"MQTT joint state pub failed: {e}")
 
     def _on_telem_raw(self, msg: ManipTelemetry):
         # Build engineering-units message for ROS
@@ -431,13 +444,15 @@ class Manip2WebBridge:
             )
 
             # Prefer TF stamp if valid; otherwise use now
-            stamp = tr.header.stamp
-            secs = stamp.to_sec() if stamp and stamp.to_sec() > 0 else time.time()
+            # stamp = tr.header.stamp
+            # secs = stamp.to_sec() if stamp and stamp.to_sec() > 0 else time.time()
 
-            ts_unix_ns = int(secs * 1e9)
-            ts_iso = datetime.datetime.fromtimestamp(
-                secs, datetime.timezone.utc
-            ).isoformat()
+            # Gunakan waktu SEKARANG untuk timestamp pengiriman
+            ts_unix_ns = _now_ns()
+            ts_iso = _iso_now()
+            
+            # Hitung umur data TF hanya untuk info (debugging)
+            # tf_age = (rospy.Time.now() - tr.header.stamp).to_sec()
 
             q = tr.transform.rotation
             t = tr.transform.translation
@@ -447,6 +462,7 @@ class Manip2WebBridge:
                 "ts_unix_ns": ts_unix_ns,
                 "ts_iso": ts_iso,
                 "seq": self._ee_seq,
+                # "tf_age_s": round(tf_age, 4), # Opsional: Info seberapa tua data TF
                 "pos_m": {"x": float(t.x), "y": float(t.y), "z": float(t.z)},
                 "quat":  {"x": float(q.x), "y": float(q.y), "z": float(q.z), "w": float(q.w)},
             }

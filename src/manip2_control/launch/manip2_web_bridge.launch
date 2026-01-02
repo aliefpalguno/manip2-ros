@@ -39,7 +39,7 @@
   <arg name="dxl_id_p2"        default="2"/>
 
   <!-- Downsample rate for /joint_states mirror to MQTT -->
-  <arg name="js_downsample_hz" default="10.0"/>
+  <arg name="js_downsample_hz" default="100.0"/>
 
   <!-- Reference currents for M-42-Pro (tune per your datasheet label) -->
   <arg name="p2_stall_current_a" default="2.0"/>
