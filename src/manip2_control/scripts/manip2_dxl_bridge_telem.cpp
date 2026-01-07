@@ -132,13 +132,13 @@ public:
         for(double d : ids_d) dxl_ids_.push_back((int)d);
 
         nh_priv_.param<int>("dxl_id_p2", dxl_id_p2_, 2);
-        nh_priv_.param<int>("speed_p1_value", speed_p1_, 20);
-        nh_priv_.param<int>("speed_p2_value", speed_p2_, 250);
+        nh_priv_.param<int>("speed_p1_value", speed_p1_, 60);
+        nh_priv_.param<int>("speed_p2_value", speed_p2_, 450);
 
-        nh_priv_.param<double>("read_rate_hz", read_rate_hz_, 60.0);
-        nh_priv_.param<double>("telemetry_rate_hz", telem_rate_hz_, 2.0); // Updated default
+        nh_priv_.param<double>("read_rate_hz", read_rate_hz_, 80.0);
+        nh_priv_.param<double>("telemetry_rate_hz", telem_rate_hz_, 50.0); // Updated default
         nh_priv_.param<bool>("print_reads", print_reads_, true);
-        nh_priv_.param<double>("print_throttle_s", print_throttle_s_, 0.1);
+        nh_priv_.param<double>("print_throttle_s", print_throttle_s_, 0.5);
 
         nh_priv_.param<std::string>("urdf_limits_deg", s_limits, "[[ -90, 90], ...]"); 
         // Parsing nested list limits [[min,max], [min,max]...]
@@ -158,7 +158,13 @@ public:
 
         nh_priv_.param<int>("p2_hw_error_addr", p2_hw_error_addr_, ADDR_PRO_HARDWARE_ERROR_STATUS);
         nh_priv_.param<bool>("publish_error_text", publish_error_text_, true);
-        nh_priv_.param<double>("shutdown_after_initial_wait_s", shutdown_after_initial_wait_s_, 6.0);
+        // nh_priv_.param<double>("shutdown_after_initial_wait_s", shutdown_after_initial_wait_s_, 6.0);
+        // Go-initial-and-shutdown verification ("success" should mean "reached initial pose")
+        // Defaults keep Stage-2 takeover quick. Tune via ROS params if needed.
+        nh_priv_.param<double>("go_initial_timeout_s", go_initial_timeout_s_, 5);
+        nh_priv_.param<double>("go_initial_tol_deg", go_initial_tol_deg_, 1.5);
+        nh_priv_.param<double>("go_initial_verify_rate_hz", go_initial_verify_rate_hz_, 40.0);
+        nh_priv_.param<int>("go_initial_stable_cycles", go_initial_stable_cycles_, 5);
 
         // State Init
         last_p1_errors_.resize(dxl_ids_.size(), 0);
@@ -221,6 +227,9 @@ private:
     std::vector<int> tick_offsets_;
     std::vector<double> degs_per_tick_, rads_per_tick_;
     int p2_hw_error_addr_;
+    // Go-initial verification params
+    double go_initial_timeout_s_, go_initial_tol_deg_, go_initial_verify_rate_hz_;
+    int go_initial_stable_cycles_;
 
     // SDK
     dynamixel::PortHandler *portHandler_;
@@ -497,6 +506,57 @@ private:
         return res;
     }
 
+    // Strict present-position read for SAFETY verification.
+    // If we can’t read cleanly, return false with a reason.
+    bool readAllTicksStrict(std::vector<int32_t> &out, std::string &why) {
+        out.assign(dxl_ids_.size(), 0);
+        why.clear();
+
+        if (!port_open_) { why = "port closed"; return false; }
+
+        std::lock_guard<std::recursive_mutex> lock(bus_mutex_);
+
+        // P1 servos (all except P2)
+        for (size_t i = 0; i < dxl_ids_.size(); i++) {
+            int sid = dxl_ids_[i];
+            if (sid == dxl_id_p2_) continue;
+
+            uint16_t val = 0;
+            uint8_t dxl_err = 0;
+            int r = packetHandler1_->read2ByteTxRx(portHandler_, sid, ADDR_RX_PRESENT_POSITION, &val, &dxl_err);
+
+            if (r != COMM_SUCCESS) { why = "P1 COMM fail ID " + std::to_string(sid); return false; }
+            if (dxl_err != 0)      { why = "P1 device err ID " + std::to_string(sid) + " " + decode_p1_error_byte(dxl_err); return false; }
+
+            out[i] = (int32_t)val;
+        }
+
+        // P2 servo present position
+        uint32_t val_u = 0;
+        uint8_t dxl_err2 = 0;
+        int r2 = packetHandler2_->read4ByteTxRx(portHandler_, dxl_id_p2_, ADDR_PRO_PRESENT_POSITION, &val_u, &dxl_err2);
+        if (r2 != COMM_SUCCESS) { why = "P2 COMM fail ID " + std::to_string(dxl_id_p2_); return false; }
+        if (dxl_err2 != 0)      { why = "P2 status err code " + std::to_string((int)dxl_err2); return false; }
+
+        int32_t val_i = (val_u >= 0x80000000) ? (int32_t)val_u - (int64_t)0x100000000 : (int32_t)val_u;
+
+        // Optional but useful: treat HW error as immediate failure
+        uint8_t hwerr = 0;
+        int r3 = packetHandler2_->read1ByteTxRx(portHandler_, dxl_id_p2_, p2_hw_error_addr_, &hwerr);
+        if (r3 == COMM_SUCCESS && hwerr != 0) {
+            why = "P2 HW error " + decode_p2_hwerr_byte(hwerr);
+            return false;
+        }
+
+        // Put P2 into correct index
+        for (size_t i = 0; i < dxl_ids_.size(); i++) {
+            if (dxl_ids_[i] == dxl_id_p2_) { out[i] = val_i; break; }
+        }
+
+        return true;
+    }
+
+
     void sendDegrees(std::vector<double> vals) {
         std::vector<int32_t> ticks;
         for(int i=0; i<5; i++) {
@@ -598,14 +658,57 @@ private:
     }
 
     bool onGoInitialAndShutdown(std_srvs::Trigger::Request &req, std_srvs::Trigger::Response &res) {
-        std::thread([this]() {
-            if(!initial_deg_.empty()) sendDegrees(initial_deg_);
-            ros::Duration(shutdown_after_initial_wait_s_).sleep();
-            ROS_WARN("Proceeding to shutdown...");
-            this->shutdownHardware();
-        }).detach();
-        res.success = true;
-        res.message = "Go-initial-and-shutdown started";
+        if (initial_deg_.empty()) { res.success=false; res.message="No initial pose"; return true; }
+        if (!port_open_)          { res.success=false; res.message="Port closed"; return true; }
+
+        // (Optional) Stop background threads so verification isn’t fighting the telemetry loops.
+        stop_threads_ = true;
+        if (read_thread_.joinable())  read_thread_.join();
+        if (telem_thread_.joinable()) telem_thread_.join();
+
+        sendDegrees(initial_deg_);
+
+        const double timeout_s = std::max(0.1, go_initial_timeout_s_);
+        const double tol_deg   = std::max(0.1, go_initial_tol_deg_);
+        const double rate_hz   = std::max(5.0, go_initial_verify_rate_hz_);
+        const int stable_need  = std::max(1, go_initial_stable_cycles_);
+
+        bool reached = false;
+        std::string fail_reason;
+        int stable = 0;
+
+        ros::Time t0 = ros::Time::now();
+        ros::Rate rate(rate_hz);
+
+        while (ros::ok() && (ros::Time::now() - t0).toSec() < timeout_s) {
+            std::vector<int32_t> ticks;
+            std::string why;
+            if (!readAllTicksStrict(ticks, why)) { fail_reason = why; break; }
+
+            std::vector<double> cur_deg = ticksToDeg(ticks);
+
+            bool within = true;
+            for (int i = 0; i < 5; i++) {
+                if (std::fabs(cur_deg[i] - initial_deg_[i]) > tol_deg) { within = false; break; }
+            }
+
+            if (within) {
+                stable++;
+                if (stable >= stable_need) { reached = true; break; }
+            } else {
+                stable = 0;
+            }
+
+            rate.sleep();
+        }
+
+        // Stage-2 means torque off no matter what.
+        shutdownHardware();
+
+        res.success = reached;
+        if (reached) res.message = "Reached initial; torque disabled";
+        else         res.message = "Failed to verify initial (" + (fail_reason.empty() ? "timeout" : fail_reason) + "); torque disabled";
+
         return true;
     }
 

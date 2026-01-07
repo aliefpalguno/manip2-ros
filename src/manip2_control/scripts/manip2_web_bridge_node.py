@@ -26,6 +26,14 @@ try:
 except Exception:
     mqtt = None
 
+import tf2_ros
+import datetime
+
+try:
+    from tf.transformations import euler_from_quaternion
+except Exception:
+    euler_from_quaternion = None
+
 
 # ---------------- Helpers ----------------
 
@@ -94,14 +102,13 @@ class Manip2WebBridge:
         self.topic_err_text = rospy.get_param("~topic_error_text", "/manip2/error_status_text")
         self.topic_err_diag = rospy.get_param("~topic_error_diag", "/manip2/error_status")
         self.topic_safety_event = rospy.get_param("~topic_safety_event", "/manip2/safety/event")
-        self.topic_safety_notification = rospy.get_param("~topic_safety_notification", "/manip2/safety/notification")
 
         # Optional: downsample joint state mirroring to MQTT / web
         self.js_downsample_hz = float(rospy.get_param("~js_downsample_hz", 10.0))
 
         # MQTT (optional)
         self.mqtt_enable = bool(rospy.get_param("~mqtt_enable", True))
-        self.mqtt_host = rospy.get_param("~mqtt_host", "127.0.0.1")
+        self.mqtt_host = rospy.get_param("~mqtt_host", "8.215.67.35")
         self.mqtt_port = int(rospy.get_param("~mqtt_port", 1883))
         self.mqtt_base = rospy.get_param("~mqtt_base", "robot/arm")
         self.mqtt_client = None
@@ -130,7 +137,6 @@ class Manip2WebBridge:
         rospy.Subscriber(self.topic_err_raw, UInt8MultiArray, self._on_error_raw, queue_size=10)
         rospy.Subscriber(self.topic_err_text, String, self._on_error_text, queue_size=10)
         rospy.Subscriber(self.topic_safety_event, String, self._on_safety_event, queue_size=10)
-        rospy.Subscriber(self.topic_safety_notification, String, self._on_safety_notification, queue_size=10)
         rospy.Subscriber("/manip2/eval_result", String, self._on_eval_result, queue_size=10)
 
         # --- MQTT optional ---
@@ -149,6 +155,39 @@ class Manip2WebBridge:
                 self.mqtt_client = None
         elif self.mqtt_enable and mqtt is None:
             rospy.logwarn("paho-mqtt not available, MQTT disabled.")
+
+        # --- EE Pose publishing (TF -> MQTT) ---
+        self.ee_enable = bool(rospy.get_param("~ee_enable", True))
+        self.ee_parent_frame = rospy.get_param("~ee_parent_frame", "base_link")
+        self.ee_child_frame  = rospy.get_param("~ee_child_frame", "end_effector")
+        self.ee_pub_hz = float(rospy.get_param("~ee_pub_hz", 30.0))
+        self.ee_timeout_s = float(rospy.get_param("~ee_timeout_s", 0.05))
+
+        # MQTT topic suffix under mqtt_base
+        # Full topic becomes: f"{mqtt_base}/{mqtt_topic_ee_pose}"
+        self.mqtt_topic_ee_pose = rospy.get_param("~mqtt_topic_ee_pose", "ee/state")
+        self.ee_retain = bool(rospy.get_param("~ee_retain", False))
+
+        self._ee_seq = 0
+        self._err_seq = 0  # monotonic sequence for MQTT errors stream
+
+        # TF listener (needed to read base_link -> end_effector)
+        self._tf_buf = tf2_ros.Buffer(cache_time=rospy.Duration(10.0))
+        self._tf_listener = tf2_ros.TransformListener(self._tf_buf)
+
+        # Timer to publish EE pose at fixed rate
+        self._ee_timer = None
+        if self.ee_enable and self.ee_pub_hz > 0:
+            self._ee_timer = rospy.Timer(
+                rospy.Duration(1.0 / self.ee_pub_hz),
+                self._on_ee_timer,
+                oneshot=False
+            )
+
+        # Timer BARU untuk membatasi frekuensi publish Joint State ke MQTT (Throttling)
+        # Ini mencegah packet loss karena burst data
+        if self.mqtt_enable and self.js_downsample_hz > 0:
+            rospy.Timer(rospy.Duration(1.0 / self.js_downsample_hz), self._on_js_mqtt_timer)
 
         rospy.loginfo("manip2_web_bridge_node initialized.")
 
@@ -207,24 +246,33 @@ class Manip2WebBridge:
         with self._lock:
             self._last_js = msg
 
-        # Optional: thin MQTT mirror of joint state at a downsampled rate
-        if self.mqtt_client is not None and self.js_downsample_hz > 0:
-            now = time.time()
-            if (now - self._last_js_pub) >= (1.0 / self.js_downsample_hz):
-                self._last_js_pub = now
-                try:
-                    joint_deg = [math.degrees(p) for p in (msg.position or [])]
-                    payload = {
-                        "ts_unix_ns": _now_ns(),
-                        "ts_iso": _iso_now(),
-                        "seq": msg.header.seq if msg.header else 0,
-                        "joint_names": msg.name,
-                        "joint_deg": joint_deg,
-                    }
-                    self.mqtt_client.publish(f"{self.mqtt_base}/joints/state",
-                                             json.dumps(payload), qos=1, retain=True)
-                except Exception as e:
-                    rospy.logwarn_throttle(1.0, "MQTT joint state pub failed: %s", str(e))
+    def _on_js_mqtt_timer(self, event):
+        """Publish joint state ke MQTT dengan frekuensi stabil (Timer)."""
+        if self.mqtt_client is None: return
+
+        # Ambil copy data terbaru secara thread-safe
+        js_copy = None
+        with self._lock:
+            if self._last_js:
+                js_copy = self._last_js
+
+        if js_copy is None: return
+
+        try:
+            joint_deg = [math.degrees(p) for p in (js_copy.position or [])]
+
+            # Gunakan _now_ns() (Waktu Server Saat Ini) agar latency terhitung benar
+            payload = {
+                "ts_unix_ns": _now_ns(),
+                "ts_iso": _iso_now(),
+                "seq": js_copy.header.seq if js_copy.header else 0,
+                "joint_names": js_copy.name,
+                "joint_deg": joint_deg,
+            }
+            self.mqtt_client.publish(f"{self.mqtt_base}/joints/state",
+                                     json.dumps(payload), qos=1, retain=False)
+        except Exception as e:
+            rospy.logwarn_throttle(2.0, f"MQTT joint state pub failed: {e}")
 
     def _on_telem_raw(self, msg: ManipTelemetry):
         # Build engineering-units message for ROS
@@ -242,8 +290,8 @@ class Manip2WebBridge:
 
         # P2 engineering values (signed current)
         cur = int(getattr(msg, "p2_current_raw", 0))
-        if cur & 0x8000:
-            cur = cur - 0x10000
+        # if cur & 0x8000:
+        #    cur = cur - 0x10000
         out.p2_id        = int(self.dxl_id_p2)
         out.p2_current_a = self._p2_current_a(cur)
         out.p2_voltage_v = self._p2_voltage_v(int(getattr(msg, "p2_voltage_in_raw", 0)))
@@ -343,9 +391,9 @@ class Manip2WebBridge:
             try:
                 summary = [{"id": int(st.hardware_id), "level": int(st.level), "message": st.message}
                            for st in arr.status]
-                payload = {"ts_unix_ns": _now_ns(), "ts_iso": _iso_now(), "errors": summary}
+                payload = {"ts_unix_ns": _now_ns(), "ts_iso": _iso_now(), "seq": self._err_seq, "errors": summary}
                 self.mqtt_client.publish(f"{self.mqtt_base}/errors",
-                                         json.dumps(payload), qos=0, retain=False)
+                                         json.dumps(payload), qos=1, retain=False)
             except Exception as e:
                 rospy.logwarn_throttle(1.0, "MQTT error pub failed: %s", str(e))
 
@@ -357,18 +405,6 @@ class Manip2WebBridge:
         except Exception as e:
             rospy.logwarn_throttle(1.0, "MQTT safety event pub failed: %s", str(e))
 
-    def _on_safety_notification(self, msg: String):
-        if self.mqtt_client is None:
-            return
-        try:
-            self.mqtt_client.publish(
-                f"{self.mqtt_base}/safety/notification",
-                msg.data,
-                qos=1,
-                retain=False,
-            )
-        except Exception as e:
-            rospy.logwarn_throttle(1.0, "MQTT safety notification pub failed: %s", str(e))
 
     def _on_eval_result(self, msg: String):
         """Forward MATLAB evaluation results to MQTT"""
@@ -387,7 +423,65 @@ class Manip2WebBridge:
         except Exception as e:
             rospy.logwarn(f"Failed to forward eval result: {e}")
 
-    
+    def _on_ee_timer(self, _event):
+        # Only publish if MQTT is active
+        if self.mqtt_client is None:
+            return
+        if not self.ee_enable:
+            return
+
+        try:
+            tr = self._tf_buf.lookup_transform(
+                self.ee_parent_frame,
+                self.ee_child_frame,
+                rospy.Time(0),
+                rospy.Duration(self.ee_timeout_s)
+            )
+
+            # Prefer TF stamp if valid; otherwise use now
+            # stamp = tr.header.stamp
+            # secs = stamp.to_sec() if stamp and stamp.to_sec() > 0 else time.time()
+
+            # Gunakan waktu SEKARANG untuk timestamp pengiriman
+            ts_unix_ns = _now_ns()
+            ts_iso = _iso_now()
+
+            # Hitung umur data TF hanya untuk info (debugging)
+            # tf_age = (rospy.Time.now() - tr.header.stamp).to_sec()
+
+            q = tr.transform.rotation
+            t = tr.transform.translation
+
+            payload = {
+                "schema": "manip2.ee_state.v1",
+                "ts_unix_ns": ts_unix_ns,
+                "ts_iso": ts_iso,
+                "seq": self._ee_seq,
+                # "tf_age_s": round(tf_age, 4), # Opsional: Info seberapa tua data TF
+                "pos_m": {"x": float(t.x), "y": float(t.y), "z": float(t.z)},
+                "quat":  {"x": float(q.x), "y": float(q.y), "z": float(q.z), "w": float(q.w)},
+            }
+
+            if euler_from_quaternion is not None:
+                roll, pitch, yaw = euler_from_quaternion([q.x, q.y, q.z, q.w])
+                payload["rpy_deg"] = {
+                    "roll":  float(roll  * 180.0 / math.pi),
+                    "pitch": float(pitch * 180.0 / math.pi),
+                    "yaw":   float(yaw   * 180.0 / math.pi),
+                }
+
+            self._ee_seq += 1
+
+            topic = f"{self.mqtt_base}/{self.mqtt_topic_ee_pose}"
+            self.mqtt_client.publish(topic, json.dumps(payload), qos=1, retain=self.ee_retain)
+
+        except Exception as e:
+            rospy.logwarn_throttle(
+                2.0,
+                "EE TF lookup/publish failed (%s -> %s): %s",
+                self.ee_parent_frame, self.ee_child_frame, str(e)
+            )
+
     # ---------------- Payload Builder ----------------
 
     def _build_joints_payload(self) -> dict:

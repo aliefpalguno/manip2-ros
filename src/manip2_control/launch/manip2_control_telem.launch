@@ -3,13 +3,13 @@
   <arg name="urdf_path" default="/home/aliefpal/catkin_ws/src/manip2_urdf_description/urdf/manip2_urdf.xacro"/>
   <arg name="port_name" default="/dev/ttyUSB0"/>
   <arg name="baud" default="1000000"/>
-  <arg name="read_rate" default="10"/>
+  <arg name="read_rate" default="80"/>
   <arg name="print_reads" default="true"/>
   <arg name="publish_error_text" default="true"/>
   <arg name="p2_hw_error_addr" default="892"/>
 
   <!-- New: telemetry loop rate -->
-  <arg name="telem_rate" default="2.0"/>
+  <arg name="telem_rate" default="50.0"/>
 
   <!-- Robot description -->
   <param name="robot_description" command="$(find xacro)/xacro $(arg urdf_path)"/>
@@ -32,7 +32,7 @@
     <param name="speed_p2_value" value="450"/>
 
     <param name="urdf_limits_deg" value="[[-90,90],[-30,50],[-105,0],[-77,113],[-103,103]]"/>
-    <param name="tick_offsets_nom" value="[486,-3030,1722,509,506]"/>
+    <param name="tick_offsets_nom" value="[506,67,1716,510,510]"/>
     <param name="degs_per_tick_nom" value="[0.29296875,0.001185185,0.0612916,-0.29296875,0.29296875]"/>
 
     <param name="read_rate_hz" value="$(arg read_rate)"/>
