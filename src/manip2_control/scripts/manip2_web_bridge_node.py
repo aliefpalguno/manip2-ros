@@ -8,7 +8,7 @@ manip2_web_bridge_node.py  (revised)
 - Builds joints[] MQTT payload as before; computes P2 load_stl/load_cont from current
 """
 
-import json, math, time, threading, ast
+import json, math, time, threading, ast, datetime
 from typing import List, Tuple
 
 import rospy
@@ -277,8 +277,9 @@ class Manip2WebBridge:
     def _on_telem_raw(self, msg: ManipTelemetry):
         # Build engineering-units message for ROS
         out = ManipTelemetrySI()
-        out.header = Header()
-        out.header.stamp = rospy.Time.now()
+        # out.header = Header()
+        # out.header.stamp = rospy.Time.now()
+        out.header = msg.header  # propagate stamp + seq from C++ telem
 
         # IDs for P1 (the subset, in-order with raw arrays)
         out.p1_ids = list(getattr(msg, "ids", []))
@@ -290,8 +291,11 @@ class Manip2WebBridge:
 
         # P2 engineering values (signed current)
         cur = int(getattr(msg, "p2_current_raw", 0))
+<<<<<<< HEAD
         # if cur & 0x8000:
         #    cur = cur - 0x10000
+=======
+>>>>>>> 80cc0e98fc7742ae3b1e3be2bed94b23fb1e62f3
         out.p2_id        = int(self.dxl_id_p2)
         out.p2_current_a = self._p2_current_a(cur)
         out.p2_voltage_v = self._p2_voltage_v(int(getattr(msg, "p2_voltage_in_raw", 0)))
@@ -566,7 +570,45 @@ class Manip2WebBridge:
 
             joints.append(obj)
 
-        return {"schema": "manip2.v1", "ts_unix_ns": _now_ns(), "ts_iso": _iso_now(), "joints": joints}
+        # ---- Build timestamps & seq from telemetry header ----
+        ts_unix_ns = _now_ns()
+        ts_iso = _iso_now()
+        seq = None
+
+        if t is not None:
+            hdr = getattr(t, "header", None)
+            if hdr is not None:
+                # sequence number
+                if hasattr(hdr, "seq"):
+                    try:
+                        seq = int(hdr.seq)
+                    except Exception:
+                        seq = None
+
+                # timestamp from header.stamp -> ISO + ns
+                stamp = getattr(hdr, "stamp", None)
+                if stamp is not None:
+                    try:
+                        secs = stamp.to_sec()
+                        ts_unix_ns = int(secs * 1e9)
+                        ts_iso = datetime.datetime.fromtimestamp(
+                            secs, datetime.timezone.utc
+                        ).isoformat()
+                    except Exception:
+                        # fall back to "now" helpers if conversion fails
+                        ts_unix_ns = _now_ns()
+                        ts_iso = _iso_now()
+
+        payload = {
+            "schema": "manip2.v1",
+            "ts_unix_ns": ts_unix_ns,
+            "ts_iso": ts_iso,
+            "joints": joints,
+        }
+        if seq is not None:
+            payload["seq"] = seq
+
+        return payload
 
 
 def main():
